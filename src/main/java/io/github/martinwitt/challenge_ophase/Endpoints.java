@@ -3,19 +3,26 @@ package io.github.martinwitt.challenge_ophase;
 import io.quarkus.oidc.IdToken;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
+import io.smallrye.jwt.build.Jwt;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
 
-@Path("/")
+@Path("/api")
+@RequestScoped
 public class Endpoints {
 
     private static final Logger LOG = Logger.getLogger(Endpoints.class);
@@ -70,5 +77,14 @@ public class Endpoints {
         user.setCurrentChallenge(challengeRepository.getChallengeByName(challenge.getNextName()));
         user.update();
         return Challenge.hashSecrets(user.getCurrentChallenge());
+    }
+
+    @GET
+    @Path("/login")
+    @Authenticated
+    public Response login(@Context SecurityIdentity identity) throws URISyntaxException {
+        return Response.seeOther(new URI("/logged-in?key="
+                        + Jwt.sign(Map.of("sub", identity.getPrincipal().getName()))))
+                .build();
     }
 }
