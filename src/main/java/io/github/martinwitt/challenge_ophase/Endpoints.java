@@ -9,13 +9,16 @@ import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.jwt.JsonWebToken;
-import org.jboss.resteasy.reactive.NoCache;
+import org.jboss.logging.Logger;
 
 @Path("/")
 public class Endpoints {
+
+    private static final Logger LOG = Logger.getLogger(Endpoints.class);
 
     @ConfigProperty(name = "first.challenge.name")
     String firstChallengeName;
@@ -29,15 +32,17 @@ public class Endpoints {
 
     @GET
     @Path("/challenges")
-    @NoCache
     @Authenticated
+    @Produces("application/json")
     public List<Challenge> challenges(@Context SecurityIdentity identity) {
         var user = User.getWithUserIDId(idToken.getSubject());
         if (user == null) {
-            User newUser = createUserIfMissing();
-            return newUser.getSolvedChallenges();
+            LOG.info("User with %s ID not found, creating new user".formatted(idToken.getSubject()));
+            user = createUserIfMissing();
         }
-        return user.getSolvedChallenges();
+        List<Challenge> challenges = user.getSolvedChallenges();
+        challenges.add(Challenge.hashSecrets(user.getCurrentChallenge()));
+        return challenges;
     }
 
     private User createUserIfMissing() {
@@ -49,21 +54,21 @@ public class Endpoints {
 
     @POST
     @Path("/submit-flags")
-    @NoCache
     @Authenticated
     public Challenge submitFlag(@Context SecurityIdentity identity, String flag) {
+
         var user = User.getWithUserIDId(idToken.getSubject());
         if (user == null) {
-            return createUserIfMissing().getCurrentChallenge();
+            return Challenge.hashSecrets(createUserIfMissing().getCurrentChallenge());
         }
         var challenge = challengeRepository.getChallengeByFlag(flag);
         if (challenge == null) {
-            return user.getCurrentChallenge();
+            return Challenge.hashSecrets(user.getCurrentChallenge());
         }
         user.addSolvedChallenge(challenge);
         // TODO: add finish check
         user.setCurrentChallenge(challengeRepository.getChallengeByName(challenge.getNextName()));
         user.update();
-        return user.getCurrentChallenge();
+        return Challenge.hashSecrets(user.getCurrentChallenge());
     }
 }
