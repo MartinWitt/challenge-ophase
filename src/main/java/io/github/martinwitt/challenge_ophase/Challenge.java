@@ -1,8 +1,13 @@
 package io.github.martinwitt.challenge_ophase;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
 import io.quarkus.mongodb.panache.PanacheMongoEntity;
 import io.quarkus.mongodb.panache.common.MongoEntity;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.bson.types.ObjectId;
 
 @MongoEntity(collection = "challenges")
 public class Challenge extends PanacheMongoEntity implements java.io.Serializable {
@@ -14,6 +19,9 @@ public class Challenge extends PanacheMongoEntity implements java.io.Serializabl
     private List<ChallengeFile> files;
     private boolean solved;
     private String nextName;
+
+    @JsonIgnore
+    public ObjectId id;
 
     public Challenge(
             String name,
@@ -117,5 +125,21 @@ public class Challenge extends PanacheMongoEntity implements java.io.Serializabl
      */
     public void setNextName(String nextName) {
         this.nextName = nextName;
+    }
+
+    public static Challenge hashSecrets(Challenge challenge) {
+        Challenge challengeHashed = new Challenge();
+        challengeHashed.name = challenge.name;
+        challengeHashed.description = challenge.description;
+        challengeHashed.flag = challenge.flag;
+        challengeHashed.hints = challenge.hints;
+        challengeHashed.files = challenge.files;
+        challengeHashed.solved = challenge.solved;
+        HashFunction hf = Hashing.murmur3_128();
+        challengeHashed.flag =
+                hf.hashString(challenge.flag, StandardCharsets.UTF_8).toString();
+        challengeHashed.nextName =
+                hf.hashString(challenge.nextName, StandardCharsets.UTF_8).toString();
+        return challengeHashed;
     }
 }
